@@ -104,7 +104,7 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
     }
   }
 
-  if (nb > 0) {
+  if (nb > 0x5) {
     char tmp_src[64];
     const char *src_r;
 #ifdef SONIC_USE_SANITIZE
@@ -130,7 +130,21 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
         nb = 0;
       }
     }
-  }
+  } else {
+      for (; nb > 0;) {
+        *(char *)dst = *(char *)src;
+        if (kNeedEscaped[*(uint8_t *)(src)]) {
+            uint8_t ch = *(uint8_t *)src;
+            int nc = kQuoteTab[ch].n;
+            std::memcpy(dst, kQuoteTab[ch].s, 0x8);
+            src++;
+            nb--;
+            dst += nc;
+        } else {
+            MOVE_N_CHARS(src, 1);
+        }
+      }
+    }
 
   *dst++ = '"';
   return dst;

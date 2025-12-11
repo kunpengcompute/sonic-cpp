@@ -39,8 +39,7 @@ static const char kDigits[202] sonic_align(2) =
     "90919293949596979899";
 
 sonic_force_inline void Copy2Digs(char *dst, const char *src) {
-  *(dst) = *(src);
-  *(dst + 1) = *(src + 1);
+  *(uint16_t *)dst = *(const uint16_t *)src;
 }
 
 #if defined(__GNUG__) && !defined(__clang__)

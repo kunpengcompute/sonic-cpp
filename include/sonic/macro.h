@@ -25,6 +25,8 @@
 #define sonic_never_inline inline __attribute__((noinline))
 #define sonic_static_noinline static sonic_never_inline
 #define sonic_static_inline static sonic_force_inline
+#define static_sonic_inline static inline
+#define PLDL1KEEP_OFFSET(ptr, off) __asm__ volatile("prfm pldl1keep, [%0, %1]" : : "r"(ptr), "r"(off))
 
 #ifdef SONIC_DEBUG
 #include <cassert>

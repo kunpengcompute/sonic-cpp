@@ -772,6 +772,7 @@ static sonic_force_inline char* FormatSignificand(uint64_t sig, char* out,
   char* p = out + cnt;
   int ctz = 0;
 
+  __asm__ volatile("prfm pldl1keep, [%0, %1]" : : "r"(out), "r"(0x20));
   if ((sig >> 32) != 0) {
     uint64_t q = sig / 100000000;
     uint32_t r = ((uint32_t)sig) - 100000000 * ((uint32_t)q);
@@ -954,7 +955,7 @@ static sonic_force_inline F64Decimal F64ToDecimal(uint64_t rsig, int32_t rexp,
   upper = vbr - !even;
 
   /* s is in */
-  s = vb / 4;
+  s = vb >> 2;
   if (s >= 10) {
     /* R_k+1 interval contains at most one: up or wp */
     uint64_t sp = s / 10;

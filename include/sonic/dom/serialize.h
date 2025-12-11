@@ -157,6 +157,7 @@ val_begin:
   val_cnt--;
   if (sonic_likely(val_cnt != 0)) {
     node = node->next();
+    __asm__ volatile("prfm pldl1keep, [%0, %1]" : : "r"(node), "r"(0x0));
     goto val_begin;
   }
 scope_end:
