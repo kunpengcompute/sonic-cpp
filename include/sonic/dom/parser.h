@@ -187,7 +187,7 @@ class Parser {
     return false;
   }
 
-  SonicError parseFloatEiselLemire64(double &dbl, int exp10, uint64_t man,
+  sonic_force_inline SonicError parseFloatEiselLemire64(double &dbl, int exp10, uint64_t man,
                                      int sgn, bool trunc, const char *s) const {
     union {
       double val = 0;
@@ -481,7 +481,7 @@ class Parser {
   }
 
   template <typename SAX>
-  void parsePrimitives(SAX &sax) {
+  sonic_force_inline void parsePrimitives(SAX &sax) {
     switch (json_buf_[pos_ - 1]) {
       case '0':
       case '1':
@@ -525,7 +525,7 @@ class Parser {
   struct CheckKeyReturn<T, decltype((void)T::check_key_return, 0)>
       : std::true_type {};
 
-  template <unsigned parseFlags, typename SAX>
+   template <unsigned parseFlags, typename SAX>
   sonic_force_inline void parseImpl(SAX &sax) {
 #define sonic_check_err()     \
   do {                        \
@@ -542,8 +542,7 @@ class Parser {
     bool found = true;
 
     uint8_t c = scan.SkipSpace(json_buf_, pos_);
-    switch (c) {
-      case '[': {
+      if(c == '[') {
         sax.StartArray();
         depth.push_back(kArrMask);
         c = scan.SkipSpace(json_buf_, pos_);
@@ -553,7 +552,7 @@ class Parser {
         }
         goto arr_val;
       }
-      case '{': {
+      else if(c == '{') {
         sax.StartObject();
         depth.push_back(kObjMask);
         c = scan.SkipSpace(json_buf_, pos_);
@@ -563,10 +562,10 @@ class Parser {
         }
         goto obj_key;
       }
-      default:
+      else {
         parsePrimitives(sax);
         goto doc_end;
-    }
+      }
 
   obj_key:
     if (sonic_unlikely(c != '"')) goto err_invalid_char;
@@ -594,59 +593,47 @@ class Parser {
       }
     }
     c = scan.SkipSpace(json_buf_, pos_);
-    switch (c) {
-      case '{': {
-        sax.StartObject();
-        depth.push_back(kObjMask);
-        c = scan.SkipSpace(json_buf_, pos_);
-        if (c == '}') {
-          sax.EndObject(0);
-          goto scope_end;
-        }
-        goto obj_key;
+    if(c == '{') {
+      sax.StartObject();
+      depth.push_back(kObjMask);
+      c = scan.SkipSpace(json_buf_, pos_);
+      if (c == '}') {
+        sax.EndObject(0);
+        goto scope_end;
       }
-      case '[': {
-        sax.StartArray();
-        depth.push_back(kArrMask);
-        c = scan.SkipSpace(json_buf_, pos_);
-        if (c == ']') {
-          sax.EndArray(0);
-          goto scope_end;
-        }
-        goto arr_val;
+      goto obj_key;
+    }
+    else if(c == '[') {
+      sax.StartArray();
+      depth.push_back(kArrMask);
+      c = scan.SkipSpace(json_buf_, pos_);
+      if (c == ']') {
+        sax.EndArray(0);
+        goto scope_end;
       }
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-      case '-':
-        parseNumber(sax);
-        sonic_check_err();
-        break;
-      case 't':
-        parseTrue(sax);
-        sonic_check_err();
-        break;
-      case 'f':
-        parseFalse(sax);
-        sonic_check_err();
-        break;
-      case 'n':
-        parseNull(sax);
-        sonic_check_err();
-        break;
-      case '"':
-        parseStrInPlace(sax);
-        sonic_check_err();
-        break;
-      default:
-        goto err_invalid_char;
+      goto arr_val;
+    }
+    else if ( (c >= '0' && c <= '9') || c == '-') {
+      parseNumber(sax);
+      sonic_check_err();
+    }
+    else if(c == 't') {
+      parseTrue(sax);
+      sonic_check_err();
+    }
+    else if(c == 'f') {
+      parseFalse(sax);
+      sonic_check_err();
+    }
+    else if(c == 'n') {
+      parseNull(sax);
+      sonic_check_err();
+    }
+    else if(c == '"') {
+      parseStrInPlace(sax);
+      sonic_check_err();
+    }else {
+      goto err_invalid_char;
     }
     c = scan.SkipSpace(json_buf_, pos_);
 
@@ -674,8 +661,7 @@ class Parser {
     goto obj_cont;
 
   arr_val:
-    switch (c) {
-      case '{': {
+      if (c == '{') {
         sax.StartObject();
         depth.push_back(kObjMask);
         c = scan.SkipSpace(json_buf_, pos_);
@@ -685,7 +671,7 @@ class Parser {
         }
         goto obj_key;
       }
-      case '[': {
+      else if (c == '[') {
         sax.StartArray();
         depth.push_back(kArrMask);
         c = scan.SkipSpace(json_buf_, pos_);
@@ -695,37 +681,26 @@ class Parser {
         }
         goto arr_val;
       }
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-      case '-':
+      else if ( (c >= '0' && c <= '9') || c == '-') {
         parseNumber(sax);
         sonic_check_err();
-        break;
-      case 't':
+      }
+      else if (c == 't') {
         parseTrue(sax);
         sonic_check_err();
-        break;
-      case 'f':
+      }
+      else if (c == 'f') {
         parseFalse(sax);
         sonic_check_err();
-        break;
-      case 'n':
+      }
+      else if (c == 'n') {
         parseNull(sax);
         sonic_check_err();
-        break;
-      case '"':
+      }
+      else if (c == '"') {
         parseStrInPlace(sax);
         sonic_check_err();
-        break;
-      default:
+      } else {
         goto err_invalid_char;
     }
     c = scan.SkipSpace(json_buf_, pos_);

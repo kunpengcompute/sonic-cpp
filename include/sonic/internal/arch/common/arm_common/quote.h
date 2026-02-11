@@ -96,11 +96,11 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
     if ((mm = CopyAndGetEscapMask128(src, dst)) != 0) {
       // cn = __builtin_ctz(mm);
       cn = TrailingZeroes(mm) >> 2;
-      MOVE_N_CHARS(src, cn);
+      MOVE_N_CHARS(src, cn)
       DoEscape(src, dst, nb);
     } else {
       /* move to next block */
-      MOVE_N_CHARS(src, VEC_LEN);
+      MOVE_N_CHARS(src, VEC_LEN)
     }
   }
 
@@ -123,7 +123,7 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
            (0xFFFFFFFFFFFFFFFF >> ((VEC_LEN - nb) << 2));
       if (mm) {
         cn = TrailingZeroes(mm) >> 2;
-        MOVE_N_CHARS(src_r, cn);
+        MOVE_N_CHARS(src_r, cn)
         DoEscape(src_r, dst, nb);
       } else {
         dst += nb;
