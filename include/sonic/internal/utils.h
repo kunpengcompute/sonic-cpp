@@ -22,7 +22,10 @@ namespace sonic_json {
 namespace internal {
 
 static sonic_force_inline bool IsSpace(uint8_t ch) {
-  return ch == ' ' || ch == '\r' || ch == '\n' || ch == '\t';
+  if(ch > 32) return false;
+  static const uint64_t mask =
+        (1ull << ' ') | (1ull << '\r') | (1ull << '\n') | (1ull << '\t');
+  return (mask & (1ull << ch)) != 0;
 }
 
 }  // namespace internal

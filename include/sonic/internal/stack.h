@@ -146,15 +146,16 @@ class Stack {
    * remained capacity in the buffer. Otherwise, do nothing.
    */
   sonic_force_inline char* Grow(size_t cnt) {
-    if (sonic_unlikely(top_ + cnt >= buf_ + cap_)) {
+    sonic_assert(buf_ != NULL);
+    if (top_ == NULL) return nullptr;
+    if ((top_ + cnt >= buf_ + cap_)) {
       if (sonic_unlikely((top_ + cnt) > buf_ + 2 * cap_)) {
         cap_ = top_ - buf_ + cnt;
         Reserve(cap_ + cap_ / 2);
       } else {
-        Reserve(cap_ * 2);
+        Reserve(cap_ * 4);
       }
     }
-    sonic_assert(buf_ != NULL);
     return top_;
   }
 

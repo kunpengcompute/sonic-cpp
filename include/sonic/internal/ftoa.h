@@ -954,7 +954,7 @@ static sonic_force_inline F64Decimal F64ToDecimal(uint64_t rsig, int32_t rexp,
   upper = vbr - !even;
 
   /* s is in */
-  s = vb / 4;
+  s = vb >> 2;
   if (s >= 10) {
     /* R_k+1 interval contains at most one: up or wp */
     uint64_t sp = s / 10;
