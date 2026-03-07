@@ -1,0 +1,1351 @@
+diff --git a/cmake/set_arch_flags.cmake b/cmake/set_arch_flags.cmake
+index 4394840..ce7fc02 100644
+--- a/cmake/set_arch_flags.cmake
++++ b/cmake/set_arch_flags.cmake
+@@ -8,6 +8,8 @@ function(set_arch_flags target arch)
+     else()
+       if(ENABLE_SVE2_128)
+         target_compile_options(${target} PRIVATE -march=armv8-a+sve2 -msve-vector-bits=128)
++      elseif(ENABLE_SVE2_256)
++        target_compile_options(${target} PRIVATE -march=armv8-a+sve+crc+sve2 -msve-vector-bits=256)
+       else()
+         target_compile_options(${target} PRIVATE -march=armv8-a)
+       endif()
+diff --git a/include/sonic/dom/parser.h b/include/sonic/dom/parser.h
+index dfbc3e5..a950c97 100644
+--- a/include/sonic/dom/parser.h
++++ b/include/sonic/dom/parser.h
+@@ -187,7 +187,7 @@ class Parser {
+     return false;
+   }
+ 
+-  SonicError parseFloatEiselLemire64(double &dbl, int exp10, uint64_t man,
++  sonic_force_inline SonicError parseFloatEiselLemire64(double &dbl, int exp10, uint64_t man,
+                                      int sgn, bool trunc, const char *s) const {
+     union {
+       double val = 0;
+@@ -481,7 +481,7 @@ class Parser {
+   }
+ 
+   template <typename SAX>
+-  void parsePrimitives(SAX &sax) {
++  sonic_force_inline void parsePrimitives(SAX &sax) {
+     switch (json_buf_[pos_ - 1]) {
+       case '0':
+       case '1':
+@@ -525,7 +525,7 @@ class Parser {
+   struct CheckKeyReturn<T, decltype((void)T::check_key_return, 0)>
+       : std::true_type {};
+ 
+-  template <unsigned parseFlags, typename SAX>
++   template <unsigned parseFlags, typename SAX>
+   sonic_force_inline void parseImpl(SAX &sax) {
+ #define sonic_check_err()     \
+   do {                        \
+@@ -542,8 +542,7 @@ class Parser {
+     bool found = true;
+ 
+     uint8_t c = scan.SkipSpace(json_buf_, pos_);
+-    switch (c) {
+-      case '[': {
++      if(c == '[') {
+         sax.StartArray();
+         depth.push_back(kArrMask);
+         c = scan.SkipSpace(json_buf_, pos_);
+@@ -553,7 +552,7 @@ class Parser {
+         }
+         goto arr_val;
+       }
+-      case '{': {
++      else if(c == '{') {
+         sax.StartObject();
+         depth.push_back(kObjMask);
+         c = scan.SkipSpace(json_buf_, pos_);
+@@ -563,10 +562,10 @@ class Parser {
+         }
+         goto obj_key;
+       }
+-      default:
++      else {
+         parsePrimitives(sax);
+         goto doc_end;
+-    }
++      }
+ 
+   obj_key:
+     if (sonic_unlikely(c != '"')) goto err_invalid_char;
+@@ -594,59 +593,47 @@ class Parser {
+       }
+     }
+     c = scan.SkipSpace(json_buf_, pos_);
+-    switch (c) {
+-      case '{': {
+-        sax.StartObject();
+-        depth.push_back(kObjMask);
+-        c = scan.SkipSpace(json_buf_, pos_);
+-        if (c == '}') {
+-          sax.EndObject(0);
+-          goto scope_end;
+-        }
+-        goto obj_key;
++    if(c == '{') {
++      sax.StartObject();
++      depth.push_back(kObjMask);
++      c = scan.SkipSpace(json_buf_, pos_);
++      if (c == '}') {
++        sax.EndObject(0);
++        goto scope_end;
+       }
+-      case '[': {
+-        sax.StartArray();
+-        depth.push_back(kArrMask);
+-        c = scan.SkipSpace(json_buf_, pos_);
+-        if (c == ']') {
+-          sax.EndArray(0);
+-          goto scope_end;
+-        }
+-        goto arr_val;
++      goto obj_key;
++    }
++    else if(c == '[') {
++      sax.StartArray();
++      depth.push_back(kArrMask);
++      c = scan.SkipSpace(json_buf_, pos_);
++      if (c == ']') {
++        sax.EndArray(0);
++        goto scope_end;
+       }
+-      case '0':
+-      case '1':
+-      case '2':
+-      case '3':
+-      case '4':
+-      case '5':
+-      case '6':
+-      case '7':
+-      case '8':
+-      case '9':
+-      case '-':
+-        parseNumber(sax);
+-        sonic_check_err();
+-        break;
+-      case 't':
+-        parseTrue(sax);
+-        sonic_check_err();
+-        break;
+-      case 'f':
+-        parseFalse(sax);
+-        sonic_check_err();
+-        break;
+-      case 'n':
+-        parseNull(sax);
+-        sonic_check_err();
+-        break;
+-      case '"':
+-        parseStrInPlace(sax);
+-        sonic_check_err();
+-        break;
+-      default:
+-        goto err_invalid_char;
++      goto arr_val;
++    }
++    else if ( (c >= '0' && c <= '9') || c == '-') {
++      parseNumber(sax);
++      sonic_check_err();
++    }
++    else if(c == 't') {
++      parseTrue(sax);
++      sonic_check_err();
++    }
++    else if(c == 'f') {
++      parseFalse(sax);
++      sonic_check_err();
++    }
++    else if(c == 'n') {
++      parseNull(sax);
++      sonic_check_err();
++    }
++    else if(c == '"') {
++      parseStrInPlace(sax);
++      sonic_check_err();
++    }else {
++      goto err_invalid_char;
+     }
+     c = scan.SkipSpace(json_buf_, pos_);
+ 
+@@ -674,8 +661,7 @@ class Parser {
+     goto obj_cont;
+ 
+   arr_val:
+-    switch (c) {
+-      case '{': {
++      if (c == '{') {
+         sax.StartObject();
+         depth.push_back(kObjMask);
+         c = scan.SkipSpace(json_buf_, pos_);
+@@ -685,7 +671,7 @@ class Parser {
+         }
+         goto obj_key;
+       }
+-      case '[': {
++      else if (c == '[') {
+         sax.StartArray();
+         depth.push_back(kArrMask);
+         c = scan.SkipSpace(json_buf_, pos_);
+@@ -695,37 +681,26 @@ class Parser {
+         }
+         goto arr_val;
+       }
+-      case '0':
+-      case '1':
+-      case '2':
+-      case '3':
+-      case '4':
+-      case '5':
+-      case '6':
+-      case '7':
+-      case '8':
+-      case '9':
+-      case '-':
++      else if ( (c >= '0' && c <= '9') || c == '-') {
+         parseNumber(sax);
+         sonic_check_err();
+-        break;
+-      case 't':
++      }
++      else if (c == 't') {
+         parseTrue(sax);
+         sonic_check_err();
+-        break;
+-      case 'f':
++      }
++      else if (c == 'f') {
+         parseFalse(sax);
+         sonic_check_err();
+-        break;
+-      case 'n':
++      }
++      else if (c == 'n') {
+         parseNull(sax);
+         sonic_check_err();
+-        break;
+-      case '"':
++      }
++      else if (c == '"') {
+         parseStrInPlace(sax);
+         sonic_check_err();
+-        break;
+-      default:
++      } else {
+         goto err_invalid_char;
+     }
+     c = scan.SkipSpace(json_buf_, pos_);
+diff --git a/include/sonic/internal/arch/common/arm_common/quote.h b/include/sonic/internal/arch/common/arm_common/quote.h
+index 0227d6b..5c2e217 100644
+--- a/include/sonic/internal/arch/common/arm_common/quote.h
++++ b/include/sonic/internal/arch/common/arm_common/quote.h
+@@ -96,11 +96,11 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
+     if ((mm = CopyAndGetEscapMask128(src, dst)) != 0) {
+       // cn = __builtin_ctz(mm);
+       cn = TrailingZeroes(mm) >> 2;
+-      MOVE_N_CHARS(src, cn);
++      MOVE_N_CHARS(src, cn)
+       DoEscape(src, dst, nb);
+     } else {
+       /* move to next block */
+-      MOVE_N_CHARS(src, VEC_LEN);
++      MOVE_N_CHARS(src, VEC_LEN)
+     }
+   }
+ 
+@@ -123,7 +123,7 @@ sonic_static_inline char *Quote(const char *src, size_t nb, char *dst) {
+            (0xFFFFFFFFFFFFFFFF >> ((VEC_LEN - nb) << 2));
+       if (mm) {
+         cn = TrailingZeroes(mm) >> 2;
+-        MOVE_N_CHARS(src_r, cn);
++        MOVE_N_CHARS(src_r, cn)
+         DoEscape(src_r, dst, nb);
+       } else {
+         dst += nb;
+diff --git a/include/sonic/internal/arch/simd_dispatch.h b/include/sonic/internal/arch/simd_dispatch.h
+index 0c474ce..9d06c9b 100644
+--- a/include/sonic/internal/arch/simd_dispatch.h
++++ b/include/sonic/internal/arch/simd_dispatch.h
+@@ -36,6 +36,9 @@
+ #if defined(SONIC_HAVE_SVE2_128)
+ #define SONIC_USING_ARCH_FUNC(func) using sve2_128::func
+ #define INCLUDE_ARCH_FILE(file) SONIC_STRINGIFY(sve2-128/file)
++#elif defined(SONIC_HAVE_SVE2_256)
++#define SONIC_USING_ARCH_FUNC(func) using sve2_256::func
++#define INCLUDE_ARCH_FILE(file) SONIC_STRINGIFY(sve2-256/file)
+ #elif defined(SONIC_HAVE_NEON)
+ #define SONIC_USING_ARCH_FUNC(func) using neon::func
+ #define INCLUDE_ARCH_FILE(file) SONIC_STRINGIFY(neon/file)
+diff --git a/include/sonic/internal/arch/sonic_cpu_feature.h b/include/sonic/internal/arch/sonic_cpu_feature.h
+index 21d2707..a72fc56 100644
+--- a/include/sonic/internal/arch/sonic_cpu_feature.h
++++ b/include/sonic/internal/arch/sonic_cpu_feature.h
+@@ -44,4 +44,10 @@
+ #if defined(__ARM_FEATURE_SVE2) && (__ARM_FEATURE_SVE_BITS == 128)
+ #define SONIC_HAVE_SVE2_128
+ #endif
++#if defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS == 256)
++#define SONIC_HAVE_SVE_256
++#endif
++#if defined(__ARM_FEATURE_SVE2) && (__ARM_FEATURE_SVE_BITS == 256)
++#define SONIC_HAVE_SVE2_256
++#endif
+ #endif
+diff --git a/include/sonic/internal/arch/sve2-256/base.h b/include/sonic/internal/arch/sve2-256/base.h
+new file mode 100644
+index 0000000..3580163
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/base.h
+@@ -0,0 +1,101 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++
++#include <arm_neon.h>
++#include <arm_sve.h>
++#include "sonic/macro.h"
++#include "../common/arm_common/base.h"
++
++#ifndef VEC_LEN
++#define VEC_LEN 32
++#endif
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++
++using sonic_json::internal::arm_common::ClearLowestBit;
++using sonic_json::internal::arm_common::CountOnes;
++using sonic_json::internal::arm_common::InlinedMemcmp;
++using sonic_json::internal::arm_common::InlinedMemcmpEq;
++using sonic_json::internal::arm_common::LeadingZeroes;
++using sonic_json::internal::arm_common::PrefixXor;
++using sonic_json::internal::arm_common::TrailingZeroes;
++
++sonic_force_inline svbool_t copy_get_escaped_mask_predicate(svbool_t pg, const char *src, char *dst)
++{
++    svuint8_t v = svld1_u8(pg, reinterpret_cast<const uint8_t *>(src));
++    svst1_u8(pg, reinterpret_cast<uint8_t *>(dst), v);
++    svbool_t m1 = svcmpeq_n_u8(pg, v, '\\');
++    svbool_t m2 = svcmpeq_n_u8(pg, v, '"');
++    svbool_t m3 = svcmplt_n_u8(pg, v, '\x20');
++    svbool_t m4 = svorr_b_z(pg, m1, m2);
++    svbool_t m5 = svorr_b_z(pg, m3, m4);
++    return m5;
++}
++
++// The function returns the index of first (to the rigth) active elem
++sonic_force_inline int get_first_active_index(svbool_t input)
++{
++    return svcntp_b8(svptrue_b8(), svbrkb_b_z(svptrue_b8(), input));
++}
++
++
++template <size_t ChunkSize>
++sonic_force_inline void Xmemcpy(void* dst_, const void* src_, size_t chunks) {
++  std::memcpy(dst_, src_, chunks * ChunkSize);
++}
++
++template <>
++sonic_force_inline void Xmemcpy<32>(void* dst_, const void* src_,
++                                    size_t chunks) {
++  uint8_t* dst = reinterpret_cast<uint8_t*>(dst_);
++  const uint8_t* src = reinterpret_cast<const uint8_t*>(src_);
++  size_t blocks = chunks / 2;
++  svbool_t ptrue = svptrue_b8();
++  for (size_t i = 0; i < blocks; i++) {
++      svuint8x2_t s_input = svld2_u8(ptrue, src);
++      svst2_u8(ptrue, dst, s_input);
++      src += 64;
++      dst += 64;
++  }
++  if(chunks % 2) {
++    std::memcpy(dst, src, 32);
++  }
++}
++
++template <>
++sonic_force_inline void Xmemcpy<16>(void* dst_, const void* src_,
++                                    size_t chunks) {
++  uint8_t* dst = reinterpret_cast<uint8_t*>(dst_);
++  const uint8_t* src = reinterpret_cast<const uint8_t*>(src_);
++  size_t blocks = chunks / 2;
++  svbool_t ptrue = svptrue_b8();
++  for (size_t i = 0; i < blocks; i++) {
++      svuint8_t s_input = svld1_u8(ptrue, src);
++      svst1_u8(ptrue, dst, s_input);
++      src += 32;
++      dst += 32;
++  }
++  if(chunks % 2) {
++    std::memcpy(dst, src, 16);
++  }
++}
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
+diff --git a/include/sonic/internal/arch/sve2-256/itoa.h b/include/sonic/internal/arch/sve2-256/itoa.h
+new file mode 100644
+index 0000000..526417d
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/itoa.h
+@@ -0,0 +1,106 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++
++#include <arm_sve.h>
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++
++#define UTO8_FACTOR 10000
++#define UTO16_FACTOR 100000000
++
++sonic_force_inline svuint16_t utoa_8_helper(uint16_t num1, uint16_t num2)
++{
++  svbool_t ptrue_32 = svptrue_b32();
++  svuint32_t v1 = svdup_n_u32(num1);
++  svuint32_t v2 = svdup_n_u32(num2);
++  svuint32_t kVecDiv = svunpklo_u32(svreinterpret_u16_u64(svdup_n_u64(0x80003334147b20c5)));
++  svuint32_t v00 = svsplice_u32(svptrue_pat_b32(SV_VL4), v1, v2);
++  svuint32_t v01 = svmul_u32_x(ptrue_32, v00, kVecDiv);
++  svuint32_t v02 = svlsr_n_u32_x(ptrue_32, v01, 14);
++  svuint32_t kVecShift = svunpklo_u32(svreinterpret_u16_u64(svdup_n_u64(0x8000200008000080)));
++  svuint32_t v03 = svmul_u32_x(ptrue_32, v02, kVecShift);
++  return svreinterpret_u16_u32(v03);
++}
++
++sonic_force_inline svuint16_t utoa_sve(uint32_t num)
++{
++  svbool_t ptrue_16 = svptrue_b16();
++  svuint16_t help_vec = utoa_8_helper(num / UTO8_FACTOR, num % UTO8_FACTOR);
++  svuint16_t v10 = svuzp2_u16(help_vec, svdup_n_u16(0));
++  svuint16_t v11 = svmul_n_u16_x(ptrue_16, v10, 0xa);
++  svuint16_t v12 = svreinterpret_u16_u64(svlsl_n_u64_x(svptrue_b64(), svreinterpret_u64_u16(v11), 0x10));
++  svuint16_t v13 = svsub_u16_x(ptrue_16, v10, v12);
++  return v13;
++}
++
++sonic_force_inline svuint16_t utoa_helper16(uint16_t num1, uint16_t num2, uint16_t num3, uint16_t num4)
++{
++    svbool_t ptrue_32 = svptrue_b32();
++    svuint32_t v1 = svdup_n_u32(num1);
++    svuint32_t v2 = svdup_n_u32(num2);
++    svuint32_t v3 = svdup_n_u32(num3);
++    svuint32_t v4 = svdup_n_u32(num4);
++
++    svuint32_t kVecDiv = svunpklo_u32(svreinterpret_u16_u64(svdup_n_u64(0x80003334147b20c5)));
++    svuint32_t v00 = svuzp1_u32(v1, v2);
++    svuint32_t v10 = svuzp1_u32(v3, v4);
++    svuint32_t v01 = svmul_u32_x(ptrue_32, v00, kVecDiv);
++    svuint32_t v11 = svmul_u32_x(ptrue_32, v10, kVecDiv);
++    svuint32_t v02 = svlsr_n_u32_x(ptrue_32, v01, 0xe);
++    svuint32_t v12 = svlsr_n_u32_x(ptrue_32, v11, 0xe);
++    svuint32_t kVecShift = svunpklo_u32(svreinterpret_u16_u64(svdup_n_u64(0x8000200008000080)));
++    svuint32_t v03 = svmul_u32_x(ptrue_32, v02, kVecShift);
++    svuint32_t v13 = svmul_u32_x(ptrue_32, v12, kVecShift);
++    svuint16_t res = svuzp2_u16(svreinterpret_u16_u32(v03), svreinterpret_u16_u32(v13));
++    return res;
++}
++
++sonic_force_inline svuint16_t utoa_sve16(uint32_t num1, uint32_t num2)
++{
++    svbool_t ptrue_16 = svptrue_b16();
++    svuint16_t help_vec = utoa_helper16(num1 / UTO8_FACTOR, num1 % UTO8_FACTOR, num2 / UTO8_FACTOR, num2 % UTO8_FACTOR);
++    svuint16_t v11 = svmul_n_u16_x(ptrue_16, help_vec, 0xa);
++    svuint16_t v12 = svreinterpret_u16_u64(svlsl_n_u64_x(svptrue_b64(), svreinterpret_u64_u16(v11), 0x10));
++    svuint16_t v13 = svsub_u16_x(ptrue_16, help_vec, v12);
++    return v13;
++}
++
++static sonic_force_inline char *Utoa_8(uint32_t val, char *out) {
++  /* convert to digits */
++  svuint16_t v0 = utoa_sve(val);
++  svuint16_t v3 = svadd_u16_x(svptrue_b16(), v0, svdup_n_u16((uint16_t)('0')));
++  svuint8_t v4 = svuzp1_u8(svreinterpret_u8_u16(v3), svdup_n_u8(0));
++  // /* store high 64 bits */
++  svst1_u8(svptrue_pat_b8(SV_VL8), (uint8_t *)out, v4);
++  return out + 0x8;
++}
++
++static sonic_force_inline char *Utoa_16(uint64_t val, char *out)
++{
++    /* remaining digits */
++    svuint16_t v0 = utoa_sve16((uint32_t)(val / UTO16_FACTOR), (uint32_t)(val % UTO16_FACTOR));
++    svuint16_t v3 = svadd_u16_x(svptrue_b16(), v0, svdup_n_u16((uint16_t)('0')));
++    svuint8_t v4 = svuzp1_u8(svreinterpret_u8_u16(v3), svdup_n_u8(0));
++    svst1_u8(svptrue_pat_b8(SV_VL16), (uint8_t *)out, v4);
++    return out + 0x10;
++}
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
+diff --git a/include/sonic/internal/arch/sve2-256/quote.h b/include/sonic/internal/arch/sve2-256/quote.h
+new file mode 100644
+index 0000000..4662099
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/quote.h
+@@ -0,0 +1,198 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++
++#define VEC_LEN 32
++
++#include "../common/arm_common/quote.h"
++#include "../common/unicode_common.h"
++#include "simd.h"
++using sonic_json::internal::common::handle_unicode_codepoint;
++
++#ifndef PAGE_SIZE
++#define PAGE_SIZE 4096
++#endif
++
++#ifdef __GNUC__
++#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_LEAK__) || \
++    defined(__SANITIZE_UNDEFINED__)
++#ifndef SONIC_USE_SANITIZE
++#define SONIC_USE_SANITIZE
++#endif
++#endif
++#endif
++
++#if defined(__clang__)
++#if defined(__has_feature)
++#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || __has_feature(memory_sanitizer) || \
++    __has_feature(undefined_behavior_sanitizer) || __has_feature(leak_sanitizer)
++#ifndef SONIC_USE_SANITIZE
++#define SONIC_USE_SANITIZE
++#endif
++#endif
++#endif
++#endif
++
++#ifndef VEC_LEN
++#error "You should define VEC_LEN before including quote.h!"
++#endif
++
++#define MOVE_N_CHARS(src, N) \
++    do {                     \
++        (src) += (N);        \
++        nb -= (N);           \
++        dst += (N);          \
++    } while (0)
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++sonic_force_inline char *Quote(const char *src, size_t nb, char *dst)
++{
++    *dst++ = '"';
++    sonic_assert(nb < (1LL << 0x20));
++    auto svelen = svcntb();
++    svbool_t ptrue = svptrue_b8();
++    while (nb > svelen) {
++        svbool_t mask = copy_get_escaped_mask_predicate(ptrue, src, dst);
++        if (svptest_any(ptrue, mask)) {
++            auto cn = get_first_active_index(mask);
++            MOVE_N_CHARS(src, cn);
++            DoEscape(src, dst, nb);
++        } else {
++            MOVE_N_CHARS(src, svelen);
++        }
++    }
++    while (nb > 0) {
++        svbool_t predicate = svwhilelt_b8_u64(0, nb);
++        svbool_t mask = copy_get_escaped_mask_predicate(predicate, src, dst);
++        if (svptest_any(predicate, mask)) {
++            auto cn = get_first_active_index(mask);
++            MOVE_N_CHARS(src, cn);
++            DoEscape(src, dst, nb);
++        } else {
++            auto active_elems = svcntp_b8(predicate, predicate);
++            MOVE_N_CHARS(src, active_elems);
++        }
++    }
++    *dst++ = '"';
++    return dst;
++}
++
++sonic_force_inline size_t parseStringInplace(uint8_t *&src, SonicError &err) {
++  uint8_t *dst = src;
++  uint8_t *sdst = src;
++  svbool_t ptrue = svptrue_b8();
++  auto svelen = svcntb();
++  while (1) {
++  find:
++    __asm__ volatile("prfm pldl1keep, [%0, %1]" : : "r"(src), "r"(256ull));
++    svuint8_t v = svld1_u8(ptrue, reinterpret_cast<const uint8_t *>(src));
++    svbool_t quote_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('"'));
++    svbool_t escape_bits = svcmple_n_u8(ptrue, v, (uint8_t)('\x1f'));
++    svbool_t bs_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('\\'));
++    auto bs_escape = svorr_b_z(ptrue, bs_bits, escape_bits);
++    auto quote_first_bits = svbrkb_b_z(ptrue, quote_bits);
++    if (svptest_any(svbrkb_b_z(ptrue, bs_escape), quote_bits)) {
++      size_t index = svcntp_b8(quote_first_bits, quote_first_bits);
++      src += index;
++      *src++ = '\0';
++      return src - sdst - 1;
++    }
++    
++    if (sonic_unlikely(svptest_any(quote_first_bits, escape_bits))) {
++      err = kParseErrorUnEscaped;
++      return 0;
++    }
++
++    if (!svptest_any(quote_first_bits, bs_bits)) {
++      src += svelen;
++      goto find;     
++    }
++
++    /* find out where the backspace is */
++    auto bs_dist = svcntp_b8(ptrue, svbrkb_b_z(ptrue, bs_bits));
++    src += bs_dist;
++    dst = src;
++
++  cont:
++    uint8_t escape_char = src[1];
++    if (sonic_unlikely(escape_char == 'u')) {
++      if (!handle_unicode_codepoint(const_cast<const uint8_t **>(&src), &dst)) {
++        err = kParseErrorEscapedUnicode;
++        return 0;
++      }
++    } else {
++      *dst = kEscapedMap[escape_char];
++      if (sonic_unlikely(*dst == 0u)) {
++        err = kParseErrorEscapedFormat;
++        return 0;
++      }
++      src += 2;
++      dst += 1;
++    }
++    // fast path for continous escaped chars
++    if (*src == '\\') {
++      bs_dist = 0;
++      goto cont;
++    }
++
++  find_and_move:
++    // Copy the next n bytes, and find the backslash and quote in them.
++    v = svld1_u8(ptrue, reinterpret_cast<const uint8_t *>(src));
++    quote_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('"'));
++    bs_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('\\'));
++    escape_bits = svcmple_n_u8(ptrue, v, (uint8_t)('\x1f'));
++    bs_escape = svorr_b_z(ptrue, bs_bits, escape_bits);
++    quote_first_bits = svbrkb_b_z(ptrue, quote_bits);
++    // If the next thing is the end quote, copy and return
++    if (svptest_any(svbrkb_b_z(ptrue, bs_escape), quote_bits)) {
++      size_t index = svcntp_b8(quote_first_bits, quote_first_bits);
++      svst1_u8(quote_first_bits, reinterpret_cast<uint8_t *>(dst), v);
++      dst += index;
++      *dst = '\0';
++      src += index + 1;
++      return dst - sdst;
++    }
++
++    if (sonic_unlikely(svptest_any(quote_first_bits, escape_bits))) {
++      err = kParseErrorUnEscaped;
++      return 0;
++    }
++
++    if (!svptest_any(quote_first_bits, bs_bits)) {
++      /* they are the same. Since they can't co-occur, it means we
++        * encountered neither. */
++      svst1_u8(ptrue, reinterpret_cast<uint8_t *>(dst), v);
++      src += svelen;
++      dst += svelen;
++      goto find_and_move;
++    }
++    auto bs_first_bits = svbrkb_b_z(ptrue, bs_bits);
++    size_t index = svcntp_b8(bs_first_bits, bs_first_bits);
++    svst1_u8(bs_first_bits, reinterpret_cast<uint8_t *>(dst), v);
++    src += index;
++    dst += index;
++    goto cont;
++  }
++  sonic_assert(false);
++}
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
++
++#undef VEC_LEN
+diff --git a/include/sonic/internal/arch/sve2-256/simd.h b/include/sonic/internal/arch/sve2-256/simd.h
+new file mode 100644
+index 0000000..0a180e6
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/simd.h
+@@ -0,0 +1,156 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++#include "base.h"
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++
++sonic_force_inline uint64_t to_bitmask(uint8x16_t v)
++{
++    return vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v), 0x4)), 0);
++}
++
++template <typename T>
++struct simd8;
++
++//
++// Base class of simd8<uint8_t> and simd8<bool>, both of which use uint8x16_t
++// internally.
++//
++template <typename T, typename Mask = simd8<bool>>
++struct base_u8 {
++    uint8x16_t value;
++    static const int SIZE = sizeof(value);
++
++    // Conversion from/to SIMD register
++    sonic_force_inline base_u8(const uint8x16_t _value) : value(_value) {}
++    sonic_force_inline operator const uint8x16_t &() const
++    {
++        return this->value;
++    }
++    sonic_force_inline operator uint8x16_t &()
++    {
++        return this->value;
++    }
++
++    sonic_force_inline simd8<T> operator&(const simd8<T> other) const
++    {
++        return vandq_u8(*this, other);
++    }
++
++    friend sonic_force_inline Mask operator==(const simd8<T> lhs, const simd8<T> rhs)
++    {
++        return vceqq_u8(lhs, rhs);
++    }
++};
++
++// SIMD byte mask type (returned by things like eq and gt)
++template <>
++struct simd8<bool> : base_u8<bool> {
++    typedef uint16_t bitmask_t;
++    typedef uint32_t bitmask2_t;
++
++    static sonic_force_inline simd8<bool> splat(bool _value)
++    {
++        return vmovq_n_u8(uint8_t(-(!!_value)));
++    }
++
++    sonic_force_inline simd8(const uint8x16_t _value) : base_u8<bool>(_value) {}
++    // False constructor
++    sonic_force_inline simd8() : simd8(vdupq_n_u8(0)) {}
++    // Splat constructor
++    sonic_force_inline simd8(bool _value) : simd8(splat(_value)) {}
++};
++
++// Unsigned bytes
++template <>
++struct simd8<uint8_t> : base_u8<uint8_t> {
++    static sonic_force_inline uint8x16_t splat(uint8_t _value)
++    {
++        return vmovq_n_u8(_value);
++    }
++    static sonic_force_inline uint8x16_t zero()
++    {
++        return vdupq_n_u8(0);
++    }
++    static sonic_force_inline uint8x16_t load(const uint8_t *values)
++    {
++        return vld1q_u8(values);
++    }
++
++    sonic_force_inline simd8(const uint8x16_t _value) : base_u8<uint8_t>(_value) {}
++    // Zero constructor
++    sonic_force_inline simd8() : simd8(zero()) {}
++    // Array constructor
++    sonic_force_inline simd8(const uint8_t values[16]) : simd8(load(values)) {}
++    // Splat constructor
++    sonic_force_inline simd8(uint8_t _value) : simd8(splat(_value)) {}
++    // Member-by-member initialization
++    sonic_force_inline simd8(uint8_t v0, uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4, uint8_t v5, uint8_t v6,
++                             uint8_t v7, uint8_t v8, uint8_t v9, uint8_t v10, uint8_t v11, uint8_t v12, uint8_t v13,
++                             uint8_t v14, uint8_t v15)
++        : simd8(uint8x16_t{ v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15 })
++    {
++    }
++};
++
++template <typename T>
++struct simd8x64 {
++    static constexpr int NUM_CHUNKS = 64 / sizeof(simd8<T>);
++    static_assert(NUM_CHUNKS == 4, "ARM kernel should use four registers per 64-byte block.");
++    const simd8<T> chunks[NUM_CHUNKS];
++
++    simd8x64(const simd8x64<T> &o) = delete;                 // no copy allowed
++    simd8x64<T> &operator=(const simd8<T> &other) = delete;  // no assignment allowed
++    simd8x64() = delete;                                     // no default constructor allowed
++
++    sonic_force_inline simd8x64(const simd8<T> chunk0, const simd8<T> chunk1, const simd8<T> chunk2,
++                                const simd8<T> chunk3)
++        : chunks{ chunk0, chunk1, chunk2, chunk3 }
++    {
++    }
++    sonic_force_inline simd8x64(const T ptr[64])
++        : chunks{ simd8<T>::load(ptr), simd8<T>::load(ptr + 16), simd8<T>::load(ptr + 32), simd8<T>::load(ptr + 48) }
++    {
++    }
++
++    sonic_force_inline uint64_t to_bitmask() const
++    {
++        const uint8x16_t bit_mask = { 0x01, 0x02, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80,
++                                      0x01, 0x02, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80 };
++        // Add each of the elements next to each other, successively, to stuff each
++        // 8 byte mask into one.
++        uint8x16_t sum0 = vpaddq_u8(this->chunks[0] & bit_mask, this->chunks[1] & bit_mask);
++        uint8x16_t sum1 = vpaddq_u8(this->chunks[2] & bit_mask, this->chunks[3] & bit_mask);
++        sum0 = vpaddq_u8(sum0, sum1);
++        sum0 = vpaddq_u8(sum0, sum0);
++        return vgetq_lane_u64(vreinterpretq_u64_u8(sum0), 0);
++    }
++
++    sonic_force_inline uint64_t eq(const T m) const
++    {
++        const simd8<T> mask = simd8<T>::splat(m);
++        return simd8x64<bool>(this->chunks[0] == mask, this->chunks[1] == mask, this->chunks[0x2] == mask,
++                              this->chunks[0x3] == mask)
++            .to_bitmask();
++    }
++};  // struct simd8x64<T>
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
+diff --git a/include/sonic/internal/arch/sve2-256/skip.h b/include/sonic/internal/arch/sve2-256/skip.h
+new file mode 100644
+index 0000000..29a1dec
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/skip.h
+@@ -0,0 +1,248 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++
++#define VEC_LEN 32
++
++#include <sonic/internal/arch/common/skip_common.h>
++
++#include "base.h"
++#include "quote.h"
++#include "simd.h"
++#include "sonic/dom/json_pointer.h"
++#include "sonic/error.h"
++#include "sonic/internal/utils.h"
++#include "sonic/macro.h"
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++using sonic_json::internal::common::EqBytes4;
++using sonic_json::internal::common::SkipLiteral;
++
++#ifndef VEC_LEN
++#error "Define vector length firstly!"
++#endif
++
++// GetNextToken find the next characters in tokens and update the position to
++// it.
++template <size_t N>
++sonic_force_inline uint8_t GetNextToken(const uint8_t *data, size_t &pos, size_t len, const char (&tokens)[N])
++{
++    auto svelen = svcntb();
++    for (; pos < len; pos += svelen) {
++        svbool_t predicate = svwhilele_b8_u64(pos, len);
++        svuint8_t v = svld1_u8(predicate, reinterpret_cast<const uint8_t *>(data + pos));
++        svbool_t vor = svpfalse_b();
++        for (size_t i = 0; i < N - 1; i++) {
++            svbool_t vtmp = svcmpeq_n_u8(predicate, v, (uint8_t)(tokens[i]));
++            vor = svorr_b_z(predicate, vor, vtmp);
++        }
++        if (svptest_any(predicate, vor)) {
++            pos += get_first_active_index(vor);
++            return data[pos];
++        }
++    }
++    return '\0';
++}
++
++// pos is the after the ending quote
++sonic_force_inline int SkipString(const uint8_t *data, size_t &pos, size_t len)
++{
++    const static int kEscaped = 2;
++    const static int kNormal = 1;
++    const static int kUnclosed = 0;
++    auto svelen = svcntb();
++    svbool_t ptrue = svptrue_b8();
++    int ret = kNormal;
++    while (pos + svelen < len) {
++        svuint8_t v = svld1_u8(ptrue, reinterpret_cast<const uint8_t *>(data + pos));
++        svbool_t bs_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('\\'));
++        svbool_t quote_bits = svcmpeq_n_u8(ptrue, v, (uint8_t)('"'));
++
++        auto bs_first_bits = svbrkb_b_z(ptrue, bs_bits);
++        if (svptest_any(ptrue, svand_b_z(ptrue, quote_bits, bs_first_bits))) {
++            pos += get_first_active_index(quote_bits) + 1;
++            return ret;
++        }
++
++        if (svptest_any(ptrue, bs_bits)) {
++            ret = kEscaped;
++            pos += svcntp_b8(bs_first_bits, bs_first_bits) + 0x2;
++            while (pos < len) {
++                if (data[pos] == '\\') {
++                    pos += 0x2;
++                } else {
++                    break;
++                }
++            }
++        } else {
++            pos += svelen;
++        }
++    }
++
++    while (pos < len) {
++        svbool_t predicate = svwhilelt_b8_u64(pos, len);
++        svuint8_t v = svld1_u8(predicate, reinterpret_cast<const uint8_t *>(data + pos));
++        svbool_t bs_bits = svcmpeq_n_u8(predicate, v, (uint8_t)('\\'));
++        svbool_t quote_bits = svcmpeq_n_u8(predicate, v, (uint8_t)('"'));
++
++        auto bs_first_bits = svbrkb_b_z(ptrue, bs_bits);
++        if (svptest_any(predicate, svand_b_z(predicate, quote_bits, bs_first_bits))) {
++            pos += get_first_active_index(quote_bits) + 1;
++            return ret;
++        }
++
++        if (svptest_any(predicate, bs_bits)) {
++            ret = kEscaped;
++            pos += svcntp_b8(bs_first_bits, bs_first_bits) + 0x2;
++            while (pos < len) {
++                if (data[pos] == '\\') {
++                    pos += 0x2;
++                } else {
++                    break;
++                }
++            }
++        } else {
++            pos += svcntp_b8(predicate, predicate);
++        }
++    }
++
++    return kUnclosed;
++}
++
++template <typename T>
++sonic_force_inline uint64_t GetStringBits(const uint8_t *data, uint64_t &prev_instring, uint64_t &prev_escaped)
++{
++    const T v(data);
++    uint64_t escaped = 0;
++    uint64_t bs_bits = v.eq('\\');
++    if (bs_bits) {
++        escaped = common::GetEscaped<64>(prev_escaped, bs_bits);
++    } else {
++        escaped = prev_escaped;
++        prev_escaped = 0;
++    }
++    uint64_t quote_bits = v.eq('"') & ~escaped;
++    uint64_t in_string = PrefixXor(quote_bits) ^ prev_instring;
++    prev_instring = uint64_t(static_cast<int64_t>(in_string) >> 63);
++    return in_string;
++}
++
++// return true if container is closed.
++template <typename T>
++sonic_force_inline bool skip_container(const uint8_t *data, size_t &pos, size_t len, uint8_t left, uint8_t right)
++{
++    uint64_t prev_instring = 0, prev_escaped = 0, instring;
++    int rbrace_num = 0, lbrace_num = 0, last_lbrace_num;
++    const uint8_t *p;
++    while (pos + 64 <= len) {
++        p = data + pos;
++
++        instring = GetStringBits<T>(p, prev_instring, prev_escaped);
++        T v(p);
++        last_lbrace_num = lbrace_num;
++        uint64_t rbrace = v.eq(right) & ~instring;
++        uint64_t lbrace = v.eq(left) & ~instring;
++        /* traverse each '}' */
++        while (rbrace > 0) {
++            rbrace_num++;
++            lbrace_num = last_lbrace_num + CountOnes((rbrace - 1) & lbrace);
++            bool is_closed = lbrace_num < rbrace_num;
++            if (is_closed) {
++                sonic_assert(rbrace_num == lbrace_num + 1);
++                pos += TrailingZeroes(rbrace) + 1;
++                return true;
++            }
++            rbrace &= (rbrace - 1);
++        }
++        lbrace_num = last_lbrace_num + CountOnes(lbrace);
++
++        pos += 64;
++    }
++    uint8_t buf[64] = { 0 };
++    std::memcpy(buf, data + pos, len - pos);
++    p = buf;
++
++    instring = GetStringBits<T>(p, prev_instring, prev_escaped);
++    T v(p);
++    last_lbrace_num = lbrace_num;
++    uint64_t rbrace = v.eq(right) & ~instring;
++    uint64_t lbrace = v.eq(left) & ~instring;
++    /* traverse each '}' */
++    while (rbrace > 0) {
++        rbrace_num++;
++        lbrace_num = last_lbrace_num + CountOnes((rbrace - 1) & lbrace);
++        bool is_closed = lbrace_num < rbrace_num;
++        if (is_closed) {
++            sonic_assert(rbrace_num == lbrace_num + 1);
++            pos += TrailingZeroes(rbrace) + 1;
++            return true;
++        }
++        rbrace &= (rbrace - 1);
++    }
++    lbrace_num = last_lbrace_num + CountOnes(lbrace);
++
++    return false;
++}
++
++sonic_force_inline bool SkipContainer(const uint8_t *data, size_t &pos, size_t len, uint8_t left, uint8_t right)
++{
++    return skip_container<simd8x64<uint8_t>>(data, pos, len, left, right);
++}
++
++sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos, size_t &, uint64_t &)
++{
++    // fast path for single space
++    if (!IsSpace(data[pos++]))
++        return data[pos - 1];
++    if (!IsSpace(data[pos++]))
++        return data[pos - 1];
++
++    svbool_t ptrue = svptrue_b8();
++    auto svelen = svcntb();
++    // current pos is out of block
++    while (1) {
++        svuint8_t v = svld1_u8(ptrue, reinterpret_cast<const uint8_t *>(data + pos));
++        svuint8_t token = svreinterpret_u8_u32(svdup_n_u32(0x90a0d20U));
++        svbool_t mask = svnmatch_u8(ptrue, v, token);
++        if (svptest_any(ptrue, mask)) {
++            pos += svcntp_b8(ptrue, svbrkb_z(ptrue, mask));
++            return data[pos++];
++        } else {
++            pos += svelen;
++        }
++    }
++
++    sonic_assert(false && "!should not happen");
++}
++
++
++sonic_force_inline uint8_t skip_space_safe(const uint8_t *data, size_t &pos, size_t len, size_t &, uint64_t &)
++{
++    while (pos < len && IsSpace(data[pos])) {
++        pos++;
++    }
++    pos++;
++    // if not found, still return the space chars
++    return data[pos - 1];
++}
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
++
++#undef VEC_LEN
+diff --git a/include/sonic/internal/arch/sve2-256/str2int.h b/include/sonic/internal/arch/sve2-256/str2int.h
+new file mode 100644
+index 0000000..6d8cf83
+--- /dev/null
++++ b/include/sonic/internal/arch/sve2-256/str2int.h
+@@ -0,0 +1,141 @@
++/*
++ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#pragma once
++
++#define STR2INT_LOWEST_VALUE_MUL_FACTOR 10
++#define STR2INT_HUNDRED_MUL_FACTOR 100
++#define STR2INT_THOUSAND_MUL_FACTOR 1000
++
++namespace sonic_json {
++namespace internal {
++namespace sve2_256 {
++
++sonic_force_inline uint32_t low_half_simd_str2int(svuint16_t data, uint32_t *mulFactor)
++{
++    svuint32_t factor = svld1_u32(svptrue_pat_b32(SV_VL8), mulFactor);
++    svuint32_t res = svmul_u32_x(svptrue_pat_b32(SV_VL8), svunpklo_u32(data), factor);
++    return svaddv_u32(svptrue_pat_b32(SV_VL8), res);
++}
++
++sonic_force_inline uint64_t dot_simd_str2int(uint64_t *scale, uint16_t *mulFactor, svuint16_t data)
++{
++    svuint16_t factor = svld1_u16(svptrue_pat_b16(SV_VL16), mulFactor);
++    svuint64_t res = svdot_u64(svdup_n_u64(0), data, factor);
++    svuint64_t vecSca = svld1_u64(svptrue_pat_b64(SV_VL4), scale);
++    return svaddv_u64(svptrue_pat_b64(SV_VL4), svmul_u64_x(svptrue_pat_b64(SV_VL4), res, vecSca));
++}
++
++sonic_force_inline uint64_t simd_str2int(const char *c, int &man_nd)
++{
++    svbool_t pgAll = svptrue_pat_b16(SV_VL16);
++    svuint16_t data = svld1sb_u16(pgAll, reinterpret_cast<const signed char *>(&c[0]));
++    data = svsub_n_u16_x(pgAll, data, '0');
++    svbool_t gt_nine = svcmpgt_n_u16(pgAll, data, 9);
++    int num_end_idx = 16;
++    if (svptest_any(pgAll, gt_nine)) {
++        num_end_idx = svcntp_b16(pgAll, svbrkb_z(pgAll, gt_nine));
++    }
++    man_nd = man_nd < num_end_idx ? man_nd : num_end_idx;
++
++    switch (man_nd) {
++        case 1:
++            return svlasta_u16(svpfalse_b(), data);
++        case 0X2:
++            return svlasta_u16(svpfalse_b(), data) * STR2INT_LOWEST_VALUE_MUL_FACTOR +
++            svlasta_u16(svptrue_pat_b16(SV_VL1), data);
++        case 0X3:
++            return svlasta_u16(svpfalse_b(), data) * STR2INT_HUNDRED_MUL_FACTOR +
++            svlasta_u16(svptrue_pat_b16(SV_VL1), data) *
++            STR2INT_LOWEST_VALUE_MUL_FACTOR + svlasta_u16(svptrue_pat_b16(SV_VL2), data);
++        case 0x4: {
++            static uint16_t mulFactor[4] = { 1000, 100, 10, 1 };
++            svuint16_t factor = svld1_u16(svptrue_pat_b16(SV_VL4), mulFactor);
++            svuint64_t res = svdot_u64(svdup_n_u64(0), data, factor);
++            return svlasta_u64(svpfalse_b(), res);
++        }
++        case 0x5: {
++            static uint32_t mulFactor[8] = { 10000, 1000, 100, 10, 1, 0, 0, 0 };
++            return low_half_simd_str2int(data, mulFactor);
++        }
++        case 0x6: {
++            static uint32_t mulFactor[8] = { 100000, 10000, 1000, 100, 10, 1, 0, 0 };
++            return low_half_simd_str2int(data, mulFactor);
++        }
++        case 0x7: {
++            static uint32_t mulFactor[8] = { 1000000, 100000, 10000, 1000, 100, 10, 1, 0 };
++            return low_half_simd_str2int(data, mulFactor);
++        }
++        case 0x8: {
++            static uint32_t mulFactor[8] = { 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
++            return low_half_simd_str2int(data, mulFactor);
++        }
++        case 0x9: {
++            static uint32_t mulFactor[8] = { 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
++            uint64_t low_value = low_half_simd_str2int(data, mulFactor);
++            return (uint64_t)svlastb_u16(svwhilelt_b16_u32(0, 0x9), data) +
++                   (uint64_t)low_value * STR2INT_LOWEST_VALUE_MUL_FACTOR;
++        }
++        case 0xa: {
++            static uint32_t mulFactor[8] = { 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
++            uint64_t low_value = low_half_simd_str2int(data, mulFactor);
++            return (uint64_t)svlasta_u16(svwhilelt_b16_u32(0, 0x9), data) +
++                   (uint64_t)svlastb_u16(svwhilelt_b16_u32(0, 0x9), data) * STR2INT_LOWEST_VALUE_MUL_FACTOR +
++                   low_value * STR2INT_HUNDRED_MUL_FACTOR;
++        }
++        case 0xb: {
++            static uint32_t mulFactor[8] = { 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
++            uint64_t low_value = low_half_simd_str2int(data, mulFactor);
++            return (uint64_t)svlasta_u16(svwhilelt_b16_u32(0, 0xa), data) +
++                   (uint64_t)svlasta_u16(svwhilelt_b16_u32(0, 0x9), data) * STR2INT_LOWEST_VALUE_MUL_FACTOR +
++                   (uint64_t)svlastb_u16(svwhilelt_b16_u32(0, 0x9), data) * STR2INT_HUNDRED_MUL_FACTOR +
++                   low_value * STR2INT_THOUSAND_MUL_FACTOR;
++        }
++        case 0xc: {
++            static uint16_t mulFactor[16] = { 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1, 0, 0, 0, 0 };
++            static uint64_t scale[4] = { 100000000, 10000, 1, 0 };
++            return dot_simd_str2int(scale, mulFactor, data);
++        }
++
++        case 0xd: {
++            static uint16_t mulFactor[16] = { 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1, 1, 0, 0, 0 };
++            static uint64_t scale[4] = { 1000000000, 100000, 10, 1 };
++            return dot_simd_str2int(scale, mulFactor, data);
++        }
++
++        case 0xe: {
++            static uint16_t mulFactor[16] = { 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1, 10, 1, 0, 0 };
++            static uint64_t scale[4] = { 10000000000, 1000000, 100, 1 };
++            return dot_simd_str2int(scale, mulFactor, data);
++        }
++        case 0xf: {
++            static uint16_t mulFactor[16] = { 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1, 100, 10, 1, 0 };
++            static uint64_t scale[4] = { 100000000000, 10000000, 1000, 1 };
++            return dot_simd_str2int(scale, mulFactor, data);
++        }
++        case 0x10: {
++            static uint16_t mulFactor[16] = { 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1, 1000, 100, 10, 1 };
++            static uint64_t scale[4] = { 1000000000000, 100000000, 10000, 1 };
++            return dot_simd_str2int(scale, mulFactor, data);
++        }
++        default:
++            return 0;
++    }
++    return 1;
++}
++
++}  // namespace sve2_256
++}  // namespace internal
++}  // namespace sonic_json
+diff --git a/include/sonic/internal/ftoa.h b/include/sonic/internal/ftoa.h
+index 90114d9..e622236 100644
+--- a/include/sonic/internal/ftoa.h
++++ b/include/sonic/internal/ftoa.h
+@@ -954,7 +954,7 @@ static sonic_force_inline F64Decimal F64ToDecimal(uint64_t rsig, int32_t rexp,
+   upper = vbr - !even;
+ 
+   /* s is in */
+-  s = vb / 4;
++  s = vb >> 2;
+   if (s >= 10) {
+     /* R_k+1 interval contains at most one: up or wp */
+     uint64_t sp = s / 10;
+diff --git a/include/sonic/internal/itoa.h b/include/sonic/internal/itoa.h
+index c42f315..02d5b3b 100644
+--- a/include/sonic/internal/itoa.h
++++ b/include/sonic/internal/itoa.h
+@@ -39,8 +39,7 @@ static const char kDigits[202] sonic_align(2) =
+     "90919293949596979899";
+ 
+ sonic_force_inline void Copy2Digs(char *dst, const char *src) {
+-  *(dst) = *(src);
+-  *(dst + 1) = *(src + 1);
++  *(uint16_t *)dst = *(const uint16_t *)src;
+ }
+ 
+ #if defined(__GNUG__) && !defined(__clang__)
+diff --git a/include/sonic/internal/stack.h b/include/sonic/internal/stack.h
+index 0682650..8abcc73 100644
+--- a/include/sonic/internal/stack.h
++++ b/include/sonic/internal/stack.h
+@@ -146,15 +146,16 @@ class Stack {
+    * remained capacity in the buffer. Otherwise, do nothing.
+    */
+   sonic_force_inline char* Grow(size_t cnt) {
+-    if (sonic_unlikely(top_ + cnt >= buf_ + cap_)) {
++    sonic_assert(buf_ != NULL);
++    if (top_ == NULL) return nullptr;
++    if ((top_ + cnt >= buf_ + cap_)) {
+       if (sonic_unlikely((top_ + cnt) > buf_ + 2 * cap_)) {
+         cap_ = top_ - buf_ + cnt;
+         Reserve(cap_ + cap_ / 2);
+       } else {
+-        Reserve(cap_ * 2);
++        Reserve(cap_ * 4);
+       }
+     }
+-    sonic_assert(buf_ != NULL);
+     return top_;
+   }
+ 
+diff --git a/include/sonic/internal/utils.h b/include/sonic/internal/utils.h
+index c88f171..3a0dd37 100644
+--- a/include/sonic/internal/utils.h
++++ b/include/sonic/internal/utils.h
+@@ -22,7 +22,10 @@ namespace sonic_json {
+ namespace internal {
+ 
+ static sonic_force_inline bool IsSpace(uint8_t ch) {
+-  return ch == ' ' || ch == '\r' || ch == '\n' || ch == '\t';
++  if(ch > 32) return false;
++  static const uint64_t mask =
++        (1ull << ' ') | (1ull << '\r') | (1ull << '\n') | (1ull << '\t');
++  return (mask & (1ull << ch)) != 0;
+ }
+ 
+ }  // namespace internal
