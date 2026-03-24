@@ -2,14 +2,14 @@
 
 ## 函数说明
 
-ksonic-cpp库已优化函数如[**表 1** ksonic-cpp库已优化函数列表](#ksonic-cpp库已优化函数列表)所示。
+sonic-cpp补丁仓已优化函数如[**表 1** sonic-cpp补丁仓已优化函数列表](#sonic-cpp补丁仓已优化函数列表)所示。
 
-**表 1** ksonic-cpp库已优化函数列表<a id="ksonic-cpp库已优化函数列表"></a>
+**表 1** sonic-cpp补丁仓已优化函数列表<a id="sonic-cpp补丁仓已优化函数列表"></a>
 
 |名称|说明|
 |--|--|
-|Parse|将JSON字符串解析为DOM文档对象，支持完整的JSON语法解析。|
-|Serialize|将DOM文档对象序列化为JSON字符串。|
+|Parse|将Json字符串解析为DOM文档对象，支持完整的Json语法解析。|
+|Serialize|将DOM文档对象序列化为Json字符串。|
 
 ## 函数定义
 
@@ -17,7 +17,7 @@ ksonic-cpp库已优化函数如[**表 1** ksonic-cpp库已优化函数列表](#k
 
 **函数功能**
 
-将JSON字符串解析为DOM文档对象，支持完整的JSON语法解析，包括对象、数组、字符串、数字、布尔值和null。
+将Json字符串解析为DOM文档对象，支持完整的Json语法解析，包括对象、数组、字符串、数字、布尔值和NULL。
 
 **函数定义**
 
@@ -29,14 +29,14 @@ GenericDocument& Parse(StringView json)
 
 |参数名|描述|取值范围|输入/输出|
 |--|--|--|--|
-|json|指向JSON字符串的指针或字符串引用。|非空指针，指向有效的JSON格式字符串|输入|
+|json|指向Json字符串的指针或字符串引用。|非空指针，指向有效的Json格式字符串|输入|
 
 **返回值**
 
-- 返回Document对象自身的引用。
+返回Document对象自身的引用。
 
 >![](public_sys-resources/icon-note.gif) **说明：** 
->解析过程中会进行语法检查，如果JSON格式不正确，可通过HasParseError()检查是否解析失败。如果解析失败，doc的类型为null。
+>解析过程中会进行语法检查，如果Json格式不正确，可通过HasParseError()检查是否解析失败。如果解析失败，doc的类型为null。
 
 **示例**
 
@@ -69,7 +69,7 @@ Parse success!
 
 **函数功能**
 
-将DOM文档对象序列化为JSON字符串。
+将DOM文档对象序列化为Json字符串。
 
 **函数定义**
 
