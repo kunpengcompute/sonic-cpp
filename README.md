@@ -28,11 +28,11 @@ sonic-cpp/
 
 ## 版本说明
 
-详见[版本说明书](docs/zh/release_notes.md) 
+请参见《[版本说明书](docs/zh/release_notes.md)》。
 
 ## 快速上手
 
-详见[快速入门](docs/zh/quick_start.md)
+请参见《[快速入门](docs/zh/quick_start.md)》。
 
 ## 文档
 

@@ -12,7 +12,7 @@
 
 针对鲲鹏950处理器，本仓库提供了SVE2-256优化补丁 `950-sve2-256.patch`，可进一步提升Json序列化、反序列化性能。
 
-获取sonic-cpp源码：
+获取sonic-cpp源码。
 
 ```bash
 git clone https://github.com/bytedance/sonic-cpp.git
@@ -20,7 +20,7 @@ cd sonic-cpp
 git checkout 69deb02
 ```
 
-获取并应用补丁：
+获取并应用补丁。
 
 ```bash
 wget https://raw.gitcode.com/boostkit/sonic-cpp/raw/master/950-sve2-256.patch
@@ -69,7 +69,7 @@ sonic-cpp/
 ├── WORKSPACE.bzlmod
 ```
 
-## sonic-cpp 自带benchmark测试示例
+## sonic-cpp自带Benchmark测试示例
 
 ```bash
 mkdir build-llvm-sve2
@@ -77,7 +77,7 @@ cmake -S . -B build-llvm-sve2 -DBUILD_BENCH=ON -DENABLE_SVE2_256=ON
 cmake --build build-llvm-sve2 --target bench -j
 ```
 
-运行benchmark/bench：
+运行benchmark/bench。
 
 ```bash
 numactl -C 310 ./build-llvm-sve2/benchmark/bench --benchmark_filter=Sonic --benchmark_min_time=3s
@@ -87,7 +87,7 @@ sonic-cpp是头文件库，本身无编译产物，测试编译产物在build-ll
 
 ## 包含头文件使能方法示例
 
-sonic-cpp是一个header-only库，只需要包含头文件目录即可：
+sonic-cpp是一个header-only库，只需要包含头文件目录即可。
 
 ### 序列化与反序列化样例
 
@@ -115,7 +115,7 @@ int main()
 }
 ```
 
-编译命令
+编译命令。
 
 ```bash
 g++ -I./include/ -march=armv8-a+sve2 -msve-vector-bits=256 --std=c++11 -O3 example-test.cpp -o example-test
@@ -123,13 +123,13 @@ g++ -I./include/ -march=armv8-a+sve2 -msve-vector-bits=256 --std=c++11 -O3 examp
 
 ### 使能验证
 
-执行如下命令查看
+执行如下命令查看。
 
 ```bash
 objdump -d ./example | grep z0 | grep match
 ```
 
-回显如下结果说明使能成功
+回显如下结果说明使能成功。
 
 ```text
     41e4:       45218011        nmatch  p1.b, p0/z, z0.b, z1.b
