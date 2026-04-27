@@ -10,28 +10,26 @@
 
 ## 使能鲲鹏950优化补丁
 
-针对鲲鹏950处理器，本仓库提供了SVE2-256优化补丁 `950-sve2-256.patch`，可进一步提升Json序列化、反序列化性能。
+针对鲲鹏950处理器，本仓库提供了SVE2-256优化补丁 `950-sve2-256.patch`，可进一步提升Json序列化、反序列化性能。该补丁主要针对鲲鹏950处理器进行了以下优化：
 
-获取sonic-cpp源码。
+- 添加SVE2-256编译选项支持，使能SVE2-256指令集。
+- 优化关键函数的inline策略。
+- 改进解析逻辑以更好地利用向量化指令。
 
-```bash
-git clone https://github.com/bytedance/sonic-cpp.git
-cd sonic-cpp
-git checkout 69deb02
-```
+1. 获取sonic-cpp源码。
 
-获取并应用补丁。
+   ```bash
+   git clone https://github.com/bytedance/sonic-cpp.git
+   cd sonic-cpp
+   git checkout 69deb02
+   ```
 
-```bash
-wget https://raw.gitcode.com/boostkit/sonic-cpp/raw/master/950-sve2-256.patch
-git apply 950-sve2-256.patch
-```
+2. 获取并合入补丁。
 
-> **说明：** 该补丁主要针对鲲鹏950处理器进行了以下优化：
->
-> - 添加SVE2-256编译选项支持，使能SVE2-256指令集
-> - 优化关键函数的inline策略
-> - 改进解析逻辑以更好地利用向量化指令
+   ```bash
+   wget https://raw.gitcode.com/boostkit/sonic-cpp/raw/master/950-sve2-256.patch
+   git apply 950-sve2-256.patch
+   ```
 
 ### 使能后目录结构
 
