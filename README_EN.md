@@ -60,10 +60,9 @@ If you have any questions or want to provide feedback on feature requirements an
 
 You are welcome to contribute to the community. If you have any questions or suggestions, submit [issues](https://gitcode.com/boostkit/community/blob/master/docs/contributor/issue-submit.md). We will reply to you as soon as possible. Thank you for your support.
 
-## Acknowledgments
-
-The sonic-cpp patch repository is jointly developed by the following Huawei department:
-
- - Kunpeng Computing BoostKit Development Dept
-
+ 
+## Acknowledgment
+ 
+The sonic-cpp patch repository is mainly contributed by Huawei.
+ 
 Thank you to everyone in the community for your PRs. We warmly welcome contributions to the sonic-cpp patch repository!

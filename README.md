@@ -63,9 +63,7 @@ sonic-cpp补丁仓遵循 Apache-2.0许可证，具体请参见[LICENSE文件](LI
 欢迎大家为社区做贡献。如果有任何疑问或建议，请提交[Issues](https://gitcode.com/boostkit/community/blob/master/docs/contributor/issue-submit.md)，我们会尽快回复。感谢您的支持。
 
 ## 致谢
-
-sonic-cpp补丁仓由华为公司的下列部门联合贡献：
-
- - 鲲鹏计算Boostkit开发部
-
+ 
+sonic-cpp补丁仓由华为公司主导贡献。
+ 
 感谢来自社区的每一个PR，欢迎贡献sonic-cpp补丁仓！
